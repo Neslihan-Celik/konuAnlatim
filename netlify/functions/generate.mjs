@@ -22,16 +22,22 @@ export async function handler(event) {
   const text = typeof input.text === 'string' ? input.text.trim() : '';
   const language = typeof input.language === 'string' ? input.language.slice(0, 40) : 'Rusça';
   const count = Number(input.count);
+  const pageCount = Number.isInteger(Number(input.pages)) ? Math.min(200, Math.max(1, Number(input.pages))) : 1;
+  const denseContent = pageCount >= 4 || text.length >= 6500;
   if (text.length < 120) return json(400, { error: 'Seçilen sayfalarda içerik üretmek için yeterli metin yok. Taranmış PDF için OCR gerekir.' });
   if (text.length > MAX_TEXT_LENGTH) return json(413, { error: 'Seçilen sayfaların metni çok uzun. Daha dar bir sayfa aralığı seç.' });
   if (!Number.isInteger(count) || count < 4 || count > 12) return json(400, { error: 'Soru sayısı 4 ile 12 arasında olmalı.' });
 
-  const prompt = `Sen dikkatli bir ${language} dili öğretmenisin. Yalnızca aşağıdaki ders kitabı içeriğine dayan. Çıktı dili Türkçe olsun. Kısa, anlaşılır ve öğrencinin seviyesine uygun bir konu özeti hazırla; metindeki gerçek dil konularını belirle; her soruda tek ve savunulabilir doğru yanıt olan ${count} kısa quiz sorusu üret. Soruların farklı türlerini kullan: anlam, dil bilgisi, kelimeyi bağlamda kullanma, cümle kurma veya metni anlama; içerikte olmayan konuları uydurma. Dört seçenek ve Türkçe açıklayıcı ipucu ekle. Yeterli konu yoksa zayıf sorularla sayıyı doldurma; yalnızca anlamlı soruları üret ve warning alanında nedenini açıkla.\n\nDers kitabı metni:\n${text}`;
+  const summaryGuidance = denseContent
+    ? `Seçilen içerik ${pageCount} sayfa ve yoğun. Özeti kısa tut: 2–3 cümlede ana fikri ver. Konu başlıklarını ve önemli noktaları atlama: topics alanında içerikte gerçekten bulunan 4–8 ana başlığı, keyPoints alanında öğrenme için önemli 4–8 kuralı, ayrımı, örneği veya istisnayı kısa maddelerle yaz. Tekrarları çıkar.`
+    : `Seçilen içerik ${pageCount} sayfa ve görece sınırlı. Özeti biraz daha açıklayıcı ama kısa tut: 4–6 cümlede konuyu adım adım anlat, önemli ayrımı ve metindeki en az bir örneği açıkla. topics alanında 2–4 ana başlığı, keyPoints alanında 2–4 mutlaka hatırlanması gereken kuralı veya ipucunu ver.`;
+  const prompt = `Sen dikkatli bir ${language} dili öğretmenisin. Yalnızca aşağıdaki ders kitabı içeriğine dayan. Dil ve yazım kurallarına uy: summary, keyPoints, soru metinleri, seçenekler, hint ve warning alanlarını doğal, akıcı ve dil bilgisi doğru Türkçeyle yaz. Hedef dile ait kelime, örnek ve terimleri ${language} dilinin özgün alfabesi, doğru yazımı, aksanı ve büyük-küçük harf kurallarıyla yaz; başka alfabeye aktarma ve Türkçe eklerle bitişik yazıp biçimini bozma. Kaynakta yer alan hedef dil örneklerini mümkün olduğunca aynen koru; emin olmadığın biçimleri uydurma. topics alanında her konu başlığı tek bir kısa dize olsun; birden fazla başlığı aynı dizede birleştirme. Başlıkları Türkçe yaz, gerekirse hedef dildeki doğru terimi parantez içinde ekle. Noktalama, boşluk ve cümle başlangıçlarında Türkçe yazım kurallarına uy. ${summaryGuidance} Her soruda tek ve savunulabilir doğru yanıt olan ${count} kısa quiz sorusu üret. Soru kalitesi için şu kuralları mutlaka uygula: Bir boşluk doldurma sorusunda boşluğu soru cümlesinin içinde açıkça sekiz alt çizgiyle (________) göster; seçeneklerde boşluğa gelecek parçaları ver. Boşluk görünmüyorsa “boşluğu tamamla” diye sorma. Cevap soru metninde zaten yazıyorsa onu buldurma veya tekrar seçtirme; örneğin hedef dildeki cümleyi ya da cevabı soruda gösterip aynı ifadenin anlamını sorma. Anlam sorularında Türkçe anlamı verip hedef dildeki karşılığını seçtir veya hedef dilde yeni bir bağlam kur. Dil bilgisi sorularında boşluğun yeri, cümlenin bağlamı ve istenen biçim (ör. hâl eki, fiil çekimi) açıkça anlaşılır olsun. Her soru gerçekten verilen sayfalardaki bir kazanımı ölçsün; aynı soruyu farklı kelimelerle tekrarlama. Soruların farklı türlerini kullan: anlam, dil bilgisi, kelimeyi bağlamda kullanma, cümle kurma veya metni anlama; içerikte olmayan konuları uydurma. Dört seçenek ve Türkçe açıklayıcı ipucu ekle. Yeterli konu yoksa zayıf sorularla sayıyı doldurma; yalnızca anlamlı soruları üret ve warning alanında nedenini açıkla.\n\nDers kitabı metni:\n${text}`;
   const responseSchema = {
     type: 'OBJECT',
     properties: {
       summary: { type: 'STRING' },
       topics: { type: 'ARRAY', items: { type: 'STRING' } },
+      keyPoints: { type: 'ARRAY', items: { type: 'STRING' } },
       questions: {
         type: 'ARRAY',
         items: {
@@ -47,27 +53,36 @@ export async function handler(event) {
       },
       warning: { type: 'STRING' },
     },
-    required: ['summary', 'topics', 'questions', 'warning'],
+    required: ['summary', 'topics', 'keyPoints', 'questions', 'warning'],
   };
 
+  const requestBody = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema,
+      temperature: 0.25,
+      maxOutputTokens: 5000,
+      thinkingConfig: { thinkingLevel: 'minimal' },
+    },
+  });
   let upstream;
-  try {
-    upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema,
-          temperature: 0.25,
-          maxOutputTokens: 3200,
-          thinkingConfig: { thinkingLevel: 'minimal' },
-        },
-      }),
-    });
-  } catch {
-    return json(502, { error: 'Yapay zekâ servisine ulaşılamadı. Biraz sonra yeniden dene.' });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: requestBody,
+      });
+    } catch {
+      if (attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+        continue;
+      }
+      return json(502, { error: 'Yapay zekâ servisine ulaşılamadı. Bağlantını kontrol edip yeniden dene.' });
+    }
+    if (upstream.status !== 503 || attempt === 2) break;
+    await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
   }
 
   const raw = await upstream.text();
@@ -75,29 +90,41 @@ export async function handler(event) {
   try { result = JSON.parse(raw); }
   catch { return json(502, { error: `Yapay zekâ servisi geçersiz yanıt verdi (HTTP ${upstream.status}).` }); }
   if (!upstream.ok) {
-    const message = result.error?.message || 'Yapay zekâ isteği başarısız oldu.';
-    const status = upstream.status === 429 ? 429 : upstream.status === 401 || upstream.status === 403 ? 503 : 502;
-    return json(status, { error: upstream.status === 429 ? 'Ücretsiz model kullanım sınırına ulaşıldı. Bir süre sonra yeniden dene.' : message });
+    const status = upstream.status === 429 ? 429 : upstream.status === 401 || upstream.status === 403 || upstream.status === 503 ? 503 : 502;
+    const message = upstream.status === 429
+      ? 'Modelin ücretsiz kullanım sınırına ulaşıldı. Bir süre bekleyip yeniden dene.'
+      : upstream.status === 503
+        ? 'Yapay zekâ servisi şu anda yoğun. Birkaç saniye sonra yeniden dene.'
+        : upstream.status === 401 || upstream.status === 403
+          ? 'Yapay zekâ bağlantısının API anahtarı geçersiz. Site yöneticisi Netlify ayarlarını kontrol etmeli.'
+          : 'Yapay zekâ isteği başarısız oldu. Biraz sonra yeniden dene.';
+    return json(status, { error: message });
   }
 
   const answerText = result.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (!answerText) return json(502, { error: 'Model boş yanıt verdi. Bir kez daha dene; sorun sürerse daha az sayfa seç.' });
   let data;
   try { data = JSON.parse(answerText); }
   catch { return json(502, { error: 'Model geçerli bir özet ve quiz oluşturamadı. Daha az sayfa seçip tekrar dene.' }); }
 
-  const questions = Array.isArray(data.questions) ? data.questions.filter(question =>
+  const questions = Array.isArray(data.questions) ? data.questions.map(question => ({
+    ...question,
+    answer: Number(question?.answer),
+  })).filter(question =>
+    question && typeof question === 'object' &&
     typeof question.question === 'string' && question.question.trim() &&
-    Array.isArray(question.options) && question.options.length === 4 && question.options.every(option => typeof option === 'string') &&
+    Array.isArray(question.options) && question.options.length === 4 && question.options.every(option => typeof option === 'string' && option.trim()) &&
     Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 4 &&
     typeof question.hint === 'string'
   ).slice(0, count) : [];
   if (typeof data.summary !== 'string' || data.summary.trim().length < 20 || !questions.length) {
-    return json(502, { error: 'Model yeterli ve doğrulanabilir içerik üretmedi. Daha dar bir sayfa aralığıyla tekrar dene.' });
+    return json(502, { error: 'Model bu içerikten doğrulanabilir soru oluşturamadı. Yeniden dene veya daha fazla konu içeren sayfalar seç.' });
   }
 
   return json(200, {
     summary: data.summary.trim(),
     topics: Array.isArray(data.topics) ? data.topics.filter(topic => typeof topic === 'string').slice(0, 8) : [],
+    keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints.filter(point => typeof point === 'string').slice(0, 8) : [],
     questions,
     warning: typeof data.warning === 'string' ? data.warning : '',
   });

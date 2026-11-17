@@ -31,3 +31,5 @@ Canlı sitede yerel Ollama adresi kullanılamaz; Netlify sunucusu senin bilgisay
 Bilgisayarda verilen `localhost` adresini aç. Telefon ve bilgisayar aynı Wi-Fi ağına bağlıyken, bilgisayarın yerel IPv4 adresini bul (`ipconfig` komutundaki IPv4 Address) ve telefonda `http://BILGISAYAR-IP:5173` adresini aç. Vite başka bir port (ör. 5174) seçtiyse o portu kullan. Gerekirse Windows Güvenlik Duvarı'nda Node.js için özel ağ erişimine izin ver. Ollama bilgisayarda açık kalmalıdır.
 
 Yerelde geliştirme sunucusu PDF metnini Ollama'ya yollar; canlı Netlify sürümü ise yapılandırılmış Gemini Function'ını kullanır. Her iki akışta da üretim seçilen öğrenme diline ve PDF içeriğine dayanır. Modelden gelen soru ve seçenekler biçim açısından doğrulanır; pedagojik doğruluk garanti edilmez. Taranmış görsel PDF'lerde henüz OCR yoktur.
+
+Özet ekranından veya quiz sonucundan konu özeti, sorular ve cevap anahtarını Türkçe/Rusça karakterleri koruyan bir PDF olarak indirebilirsiniz.
