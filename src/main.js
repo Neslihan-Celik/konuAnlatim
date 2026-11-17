@@ -1,4 +1,4 @@
-﻿import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist';
 import './style.css';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
@@ -48,7 +48,7 @@ function render() {
               <button id="createBtn" class="primary-button" type="button" ${state.busy ? 'disabled' : ''}><span>${state.busy ? 'Sayfalar okunuyor…' : 'Özet & quiz oluştur'}</span><i data-lucide="arrow-right"></i></button><div class="privacy-note"><i data-lucide="circle-check"></i> Dosyan tarayıcından ayrılmaz.</div>
               </div>
             </section>
-        <section class="preview-panel"><div class="preview-head"><div><div class="preview-kicker"><i data-lucide="sparkles"></i> PDF’İNE GÖRE HAZIRLANIR</div><h2>Ön izleme</h2></div><span class="preview-tag">RUSÇA</span></div><div class="preview-body"><div class="lesson-chip"><i data-lucide="languages"></i> HER PDF <span>·</span> HER KONU</div><h3>Önce PDF’ni<br>yükle</h3><p class="preview-description">Seçtiğin sayfalardaki konuya göre kısa bir özet ve seviyene uygun sorular hazırlanır.</p><div class="preview-rule"></div><div class="preview-subtitle"><i data-lucide="book-open"></i> KISA KONU ÖZETİ</div><p class="summary-copy">Bu alanda yalnızca yüklediğin PDF’den üretilen özet gösterilir. Şimdilik Rusça öğrenimine odaklanıyoruz.</p><div class="example-box"><span>ÜCRETSİZ YEREL MODEL</span><p>Ollama + qwen2.5:3b</p><small>Model kurulumu için “Model kurulumu”na tıkla.</small></div><div class="preview-foot"><span><i data-lucide="circle-help"></i> 6–10 kısa soru</span><span>•</span><span>Konu sayısına göre</span></div></div><div class="preview-footer"><span class="avatar tiny">D</span><span>Her PDF için içeriğe özel çalışma</span><span>♡</span></div></section>
+        <section class="preview-panel"><div class="preview-head"><div><div class="preview-kicker"><i data-lucide="sparkles"></i> PDF’İNE GÖRE HAZIRLANIR</div><h2>Ön izleme</h2></div><span class="preview-tag">RUSÇA</span></div><div class="preview-body"><div class="lesson-chip"><i data-lucide="languages"></i> HER PDF <span>·</span> HER KONU</div><h3>Önce PDF’ni<br>yükle</h3><p class="preview-description">Seçtiğin sayfalardaki konuya göre kısa bir özet ve seviyene uygun sorular hazırlanır.</p><div class="preview-rule"></div><div class="preview-subtitle"><i data-lucide="book-open"></i> KISA KONU ÖZETİ</div><p class="summary-copy">Yüklediğin sayfalardaki konular burada kısa ve anlaşılır bir özet hâlinde gösterilir.</p><div class="preview-foot"><span><i data-lucide="circle-help"></i> 6–10 kısa soru</span><span>•</span><span>Konu sayısına göre</span></div></div><div class="preview-footer"><span class="avatar tiny">D</span><span>Her PDF için içeriğe özel çalışma</span><span>♡</span></div></section>
           </div><footer class="page-foot"><span>Öğrenme, merakla başlar. <span>✳</span></span><span>AZ VE ÖZ, HER GÜN.</span></footer>
         </section>
       </main>
