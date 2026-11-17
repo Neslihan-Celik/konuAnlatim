@@ -1,4 +1,4 @@
-const MODEL = 'gemini-3.8-flash';
+const MODEL = 'gemini-3.5-flash-lite';
 const MAX_TEXT_LENGTH = 24000;
 
 export const config = { path: '/api/generate' };
@@ -39,7 +39,7 @@ export async function handler(event) {
           responseMimeType: 'application/json',
           temperature: 0.25,
           maxOutputTokens: 3200,
-          thinkingConfig: { thinkingLevel: 'low' },
+          thinkingConfig: { thinkingLevel: 'minimal' },
         },
       }),
     });
