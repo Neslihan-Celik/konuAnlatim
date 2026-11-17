@@ -43,7 +43,8 @@ function render() {
               <div class="divider"><span></span><em>sonra</em><span></span></div>
               <div class="step-two"><div class="section-heading compact"><span class="step">02</span><div><h2>Çalışma aralığını seç</h2><p>Hangi sayfalar üzerinde çalışılsın?</p></div></div>
               <div class="range-fields"><label>İlk sayfa<div class="input-wrap"><input id="startPage" type="number" min="1" value="1" ${state.pdf ? `max="${state.pdf.numPages}"` : ''}><span>syf.</span></div></label><span class="range-dash">—</span><label>Son sayfa<div class="input-wrap"><input id="endPage" type="number" min="1" value="${state.pdf ? Math.min(3, state.pdf.numPages) : 3}" ${state.pdf ? `max="${state.pdf.numPages}"` : ''}><span>syf.</span></div></label></div>
-              <div class="question-count-field"><span class="question-count-label" id="questionCountLabel">Alıştırma soru sayısı</span><input id="questionCount" type="hidden" value="8"><button class="question-count-trigger" id="questionCountToggle" type="button" aria-labelledby="questionCountLabel questionCountValue" aria-haspopup="listbox" aria-expanded="false" aria-controls="questionCountMenu"><span id="questionCountValue">8 soru · Dengeli tekrar</span><i data-lucide="chevron-down"></i></button><div class="question-count-menu" id="questionCountMenu" role="listbox" aria-labelledby="questionCountLabel" hidden><button type="button" role="option" aria-selected="false" data-value="6"><span>6 soru</span><small>Hızlı tekrar</small></button><button type="button" role="option" aria-selected="true" data-value="8" class="selected"><span>8 soru</span><small>Dengeli tekrar</small></button><button type="button" role="option" aria-selected="false" data-value="10"><span>10 soru</span><small>Konuyu pekiştir</small></button></div></div>
+              <div class="custom-select-field"><span class="custom-select-label" id="questionCountLabel">Alıştırma soru sayısı</span><input id="questionCount" type="hidden" value="8"><button class="custom-select-trigger" id="questionCountToggle" type="button" aria-labelledby="questionCountLabel questionCountValue" aria-haspopup="listbox" aria-expanded="false" aria-controls="questionCountMenu"><span id="questionCountValue">8 soru · Dengeli tekrar</span><i data-lucide="chevron-down"></i></button><div class="custom-select-menu" id="questionCountMenu" role="listbox" aria-labelledby="questionCountLabel" hidden><button type="button" role="option" aria-selected="false" data-value="6"><span>6 soru</span><small>Hızlı tekrar</small></button><button type="button" role="option" aria-selected="true" data-value="8" class="selected"><span>8 soru</span><small>Dengeli tekrar</small></button><button type="button" role="option" aria-selected="false" data-value="10"><span>10 soru</span><small>Konuyu pekiştir</small></button></div></div>
+              <div class="custom-select-field"><span class="custom-select-label" id="difficultyLabel">Zorluk seviyesi</span><input id="difficulty" type="hidden" value="medium"><button class="custom-select-trigger" id="difficultyToggle" type="button" aria-labelledby="difficultyLabel difficultyValue" aria-haspopup="listbox" aria-expanded="false" aria-controls="difficultyMenu"><span id="difficultyValue">Orta · Dengeli zorluk</span><i data-lucide="chevron-down"></i></button><div class="custom-select-menu" id="difficultyMenu" role="listbox" aria-labelledby="difficultyLabel" hidden><button type="button" role="option" aria-selected="false" data-value="easy"><span>Kolay</span><small>Temel kavramlar</small></button><button type="button" role="option" aria-selected="true" data-value="medium" class="selected"><span>Orta</span><small>Dengeli uygulama</small></button><button type="button" role="option" aria-selected="false" data-value="hard"><span>Zor</span><small>Daha fazla akıl yürütme</small></button></div></div>
               <button id="createBtn" class="primary-button" type="button" ${state.busy ? 'disabled' : ''}><span>${state.busy ? 'Sayfalar okunuyor…' : 'Özeti ve soruları oluştur'}</span><i data-lucide="arrow-right"></i></button><div class="privacy-note"><i data-lucide="circle-check"></i> Dosyan tarayıcından ayrılmaz.</div>
               </div>
             </section>
@@ -54,7 +55,8 @@ function render() {
     </div>`;
   document.querySelector('#pdfInput').addEventListener('change', handleFile);
   document.querySelector('#createBtn').addEventListener('click', createLesson);
-  bindQuestionCount();
+  bindCustomSelect('#questionCountToggle', '#questionCountMenu', '#questionCount', '#questionCountValue');
+  bindCustomSelect('#difficultyToggle', '#difficultyMenu', '#difficulty', '#difficultyValue');
   document.querySelector('#sampleBtn').addEventListener('click', () => alert('Ollama’yı ollama.com adresinden kur. Ardından terminalde “ollama run qwen2.5:3b” komutunu çalıştır. İlk model indirmesi tamamlanınca PDF yükleyebilirsin.'));
   const zone = document.querySelector('.upload-zone');
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
@@ -63,13 +65,14 @@ function render() {
   createIcons();
 }
 
-function bindQuestionCount() {
-  const field = document.querySelector('.question-count-field');
-  const trigger = document.querySelector('#questionCountToggle');
-  const menu = document.querySelector('#questionCountMenu');
-  const valueInput = document.querySelector('#questionCount');
-  const valueLabel = document.querySelector('#questionCountValue');
+function bindCustomSelect(triggerSelector, menuSelector, inputSelector, valueSelector) {
+  const trigger = document.querySelector(triggerSelector);
+  const field = trigger.closest('.custom-select-field');
+  const menu = document.querySelector(menuSelector);
+  const valueInput = document.querySelector(inputSelector);
+  const valueLabel = document.querySelector(valueSelector);
   const options = [...menu.querySelectorAll('[role="option"]')];
+  const handlerKey = `${inputSelector.slice(1)}OutsideHandler`;
   const closeMenu = (returnFocus = false) => {
     menu.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
@@ -91,7 +94,7 @@ function bindQuestionCount() {
   options.forEach((option, index) => {
     option.addEventListener('click', () => {
       valueInput.value = option.dataset.value;
-      valueLabel.textContent = `${option.dataset.value} soru · ${option.querySelector('small').textContent}`;
+      valueLabel.textContent = `${option.querySelector('span').textContent} · ${option.querySelector('small').textContent}`;
       options.forEach(item => {
         const selected = item === option;
         item.classList.toggle('selected', selected);
@@ -114,11 +117,11 @@ function bindQuestionCount() {
       options[nextIndex].focus();
     });
   });
-  if (state.questionCountOutsideHandler) document.removeEventListener('pointerdown', state.questionCountOutsideHandler);
-  state.questionCountOutsideHandler = event => {
+  if (state[handlerKey]) document.removeEventListener('pointerdown', state[handlerKey]);
+  state[handlerKey] = event => {
     if (!field.contains(event.target)) closeMenu();
   };
-  document.addEventListener('pointerdown', state.questionCountOutsideHandler);
+  document.addEventListener('pointerdown', state[handlerKey]);
 }
 
 async function handleFile(e) { if (e.target.files[0]) await processFile(e.target.files[0]); }
@@ -131,7 +134,7 @@ async function processFile(file) {
 }
 
 async function createLesson() {
-  const start = Number(document.querySelector('#startPage').value), end = Number(document.querySelector('#endPage').value), count = Number(document.querySelector('#questionCount').value);
+  const start = Number(document.querySelector('#startPage').value), end = Number(document.querySelector('#endPage').value), count = Number(document.querySelector('#questionCount').value), difficulty = document.querySelector('#difficulty').value;
   if (!state.file) return alert('Önce bir ders kitabı PDF’i yükle.');
   const max = state.pdf?.numPages || 1;
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start || end > max) return alert(`Sayfa aralığını 1 ile ${max} arasında seç.`);
@@ -141,7 +144,7 @@ async function createLesson() {
     if (state.pdf?.getPage) for (let n = start; n <= end; n++) { const p = await state.pdf.getPage(n); const c = await p.getTextContent(); pages.push(c.items.map(x => x.str).join(' ')); }
     const text = pages.join('\n').replace(/\s+/g, ' ').trim();
     if (text.length < 120) throw new Error('Seçilen sayfalardan yeterli metin çıkarılamadı. PDF taranmış olabilir veya seçilen sayfalarda metin bulunmayabilir.');
-    const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.slice(0, 24000), count, pages: end - start + 1 }) });
+    const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.slice(0, 24000), count, difficulty, pages: end - start + 1 }) });
     const rawResponse = await response.text();
     let generated;
     try {
@@ -153,7 +156,7 @@ async function createLesson() {
         : `API boş yanıt döndürdü (HTTP ${response.status}). Geliştirme sunucusunu yeniden başlatıp aynı adresi aç.`);
     }
     if (!response.ok) throw new Error(generated.error || 'Yapay zekâ içeriği üretilemedi.');
-    state.selected = { start, end, text, questionCount: count, summary: generated.summary, topics: generated.topics, keyPoints: generated.keyPoints, warning: generated.warning };
+    state.selected = { start, end, text, questionCount: count, difficulty, summary: generated.summary, topics: generated.topics, keyPoints: generated.keyPoints, warning: generated.warning };
     state.questions = generated.questions;
     if (!state.questions.length) throw new Error('Bu sayfalarda quiz oluşturacak yeterli konu içeriği bulunamadı.');
     state.questionSets = [{ questions: [...state.questions], answers: [], selectedOptions: [] }];
@@ -230,6 +233,7 @@ async function startNewQuiz() {
       body: JSON.stringify({
         text: state.selected.text.slice(0, 24000),
         count: state.selected.questionCount,
+        difficulty: state.selected.difficulty,
         pages: state.selected.end - state.selected.start + 1,
         excludeQuestions,
       }),
@@ -270,13 +274,14 @@ async function downloadStudyPdf() {
     pdfMake.addVirtualFileSystem(virtualFonts);
 
     const { selected } = state;
+    const difficultyLabel = { easy: 'Kolay', medium: 'Orta', hard: 'Zor' }[selected.difficulty] || 'Orta';
     const questionSets = state.questionSets.length
       ? state.questionSets
       : [{ questions: state.questions, answers: [], selectedOptions: [] }];
     const content = [
       { text: 'DERS CEBİ', style: 'brand' },
       { text: `KONU ÖZETİ VE ALIŞTIRMALAR`, style: 'title' },
-      { text: `Kaynak: ${state.file.name}\nSayfa aralığı: ${selected.start}–${selected.end} · ${new Intl.DateTimeFormat('tr-TR').format(new Date())}`, style: 'meta' },
+      { text: `Kaynak: ${state.file.name}\nSayfa aralığı: ${selected.start}–${selected.end} · Zorluk: ${difficultyLabel} · ${new Intl.DateTimeFormat('tr-TR').format(new Date())}`, style: 'meta' },
       { text: 'Konu özeti', style: 'section' },
       { text: selected.summary || 'Özet oluşturulamadı.', style: 'body' },
     ];
