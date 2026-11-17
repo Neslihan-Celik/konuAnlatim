@@ -45,7 +45,8 @@ export async function handler(event) {
   const questionHistoryGuidance = excludeQuestions.length
     ? `ÖNCEKİ TURLARDA SORULANLAR: ${JSON.stringify(excludeQuestions)}. Bunları aynen veya farklı sözcüklerle yeniden sorma. Yeni turda kaynakta bulunan ve henüz ölçülmemiş başka kural, kavram, örnek ya da uygulamalara odaklan; önceki sorularla aynı bilgiyi sınayan sorular üretme.`
     : '';
-  const prompt = `Sen dikkatli bir öğretmensin. Yalnızca aşağıdaki PDF sayfalarındaki içeriğe dayan. ${subjectGuidance} summary, topics, keyPoints, soru metinleri, seçenekler, hint ve warning alanlarını doğal ve dil bilgisi doğru Türkçeyle yaz. Kaynaktaki özel terimleri, sembolleri, formülleri ve hedef dil örneklerini doğru yazımlarıyla koru; başka alfabeye aktarma veya kaynakta olmayan bilgi uydurma. Noktalama, boşluk ve cümle başlangıçlarında Türkçe yazım kurallarına uy. topics alanında her başlığı ayrı ve kısa bir dize olarak yaz; başlıkları tek bir dizede birleştirme. ${summaryGuidance} PDF’de yeterli içerik varsa, her birinin tek ve savunulabilir doğru yanıtı bulunan ${count} kısa çoktan seçmeli alıştırma hazırla. Konuya uygun soru türlerini kullan: kavramı açıklama, kuralı/formülü uygulama, neden-sonuç, örnek yorumlama veya metni anlama. Boşluk doldurma sorusu kullanırsan boşluğu soru içinde açıkça sekiz alt çizgiyle (________) göster ve seçenekleri bu boşluğu tamamlayacak şekilde yaz; boşluk göstermeden boşluk doldurma isteme. Cevabı sorunun içinde verme veya aynı ifadeyi tekrar seçtirme. Her sorunun dört seçeneği ve doğru yanıtı açıklayan kısa, Türkçe bir ipucu olsun. ${questionHistoryGuidance} İçerik sayıyı karşılamaya yetmiyorsa zayıf soru uydurma; anlamlı olanları üret ve warning alanında bunu kısaca belirt.\n\nPDF’den çıkarılan metin:\n${text}`;
+  const questionQualityGuidance = `Her soru nesnesinde topic (ölçülen konu başlığı) ve evidence (PDF metninden doğru yanıtı doğrudan destekleyen, en az 12 karakterlik kısa ve aynen alıntı) alanları da olsun. Soruları oluşturmadan önce her birini sessizce gözden geçir: doğru yanıt kaynakta gösterilen kuralı karşılamalı; seçenekler aynı bağlamda, aynı türde, dil bilgisi açısından geçerli ve birbirinden farklı olmalı; yalnızca sınanan kural bakımından ayrılmalı. Çeviri ve uygulama sorularında kişi, nesne, yer, zaman ve olumsuzluk gibi anlam parçalarının tamamını koru. Kaynakta veya öğretilen kurallarda bulunmayan yer, nesne ya da ifade ekleyerek bağlam uydurma. Örneğin soru “uçakta” diyorsa doğru seçenek de bu konum bilgisini içermeli; kaynak bu yapıyı desteklemiyorsa o soruyu sorma. Soru cevabı içinde vermesin ve çeldiriciler aynı cümlenin ilgisiz zaman/kelime değişikliklerinden oluşmasın. Bir soruyu bu denetimlerden geçiremiyorsan çıktıya ekleme.`;
+  const prompt = `Sen dikkatli bir öğretmensin. Yalnızca aşağıdaki PDF sayfalarındaki içeriğe dayan. ${subjectGuidance} summary, topics, keyPoints, soru metinleri, seçenekler, hint ve warning alanlarını doğal ve dil bilgisi doğru Türkçeyle yaz. Kaynaktaki özel terimleri, sembolleri, formülleri ve hedef dil örneklerini doğru yazımlarıyla koru; başka alfabeye aktarma veya kaynakta olmayan bilgi uydurma. Noktalama, boşluk ve cümle başlangıçlarında Türkçe yazım kurallarına uy. topics alanında her başlığı ayrı ve kısa bir dize olarak yaz; başlıkları tek bir dizede birleştirme. ${summaryGuidance} PDF’de yeterli içerik varsa, her birinin tek ve savunulabilir doğru yanıtı bulunan ${count} kısa çoktan seçmeli alıştırma hazırla. Konuya uygun soru türlerini kullan: kavramı açıklama, kuralı/formülü uygulama, neden-sonuç, örnek yorumlama veya metni anlama. Boşluk doldurma sorusu kullanırsan boşluğu soru içinde açıkça sekiz alt çizgiyle (________) göster ve seçenekleri bu boşluğu tamamlayacak şekilde yaz; boşluk göstermeden boşluk doldurma isteme. Cevabı sorunun içinde verme veya aynı ifadeyi tekrar seçtirme. Her sorunun dört seçeneği ve doğru yanıtı açıklayan kısa, Türkçe bir ipucu olsun. ${questionQualityGuidance} ${questionHistoryGuidance} İçerik sayıyı karşılamaya yetmiyorsa zayıf soru uydurma; anlamlı olanları üret ve warning alanında bunu kısaca belirt.\n\nPDF’den çıkarılan metin:\n${text}`;
   const responseSchema = {
     type: 'OBJECT',
     properties: {
@@ -58,11 +59,13 @@ export async function handler(event) {
           type: 'OBJECT',
           properties: {
             question: { type: 'STRING' },
+            topic: { type: 'STRING' },
+            evidence: { type: 'STRING' },
             options: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 4, maxItems: 4 },
             answer: { type: 'INTEGER', minimum: 0, maximum: 3 },
             hint: { type: 'STRING' },
           },
-          required: ['question', 'options', 'answer', 'hint'],
+          required: ['question', 'topic', 'evidence', 'options', 'answer', 'hint'],
         },
       },
       warning: { type: 'STRING' },
@@ -121,14 +124,20 @@ export async function handler(event) {
   try { data = JSON.parse(answerText); }
   catch { return json(502, { error: 'Model geçerli bir özet ve quiz oluşturamadı. Daha az sayfa seçip tekrar dene.' }); }
 
+  const normalizedSourceText = normalizeQuestion(text);
   const validQuestions = Array.isArray(data.questions) ? data.questions.map(question => ({
     ...question,
     answer: Number(question?.answer),
   })).filter(question =>
     question && typeof question === 'object' &&
     typeof question.question === 'string' && question.question.trim() &&
+    typeof question.topic === 'string' && question.topic.trim() &&
+    typeof question.evidence === 'string' && normalizeQuestion(question.evidence).length >= 12 &&
+    normalizedSourceText.includes(normalizeQuestion(question.evidence)) &&
     Array.isArray(question.options) && question.options.length === 4 && question.options.every(option => typeof option === 'string' && option.trim()) &&
+    new Set(question.options.map(normalizeQuestion)).size === 4 &&
     Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 4 &&
+    !(normalizeQuestion(question.options[question.answer]).length >= 10 && normalizeQuestion(question.question).includes(normalizeQuestion(question.options[question.answer]))) &&
     typeof question.hint === 'string'
   ) : [];
   const questions = validQuestions.filter(question => !excludedQuestionSet.has(normalizeQuestion(question.question))).slice(0, count);
