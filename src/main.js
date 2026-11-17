@@ -43,7 +43,7 @@ function render() {
               <div class="divider"><span></span><em>sonra</em><span></span></div>
               <div class="step-two"><div class="section-heading compact"><span class="step">02</span><div><h2>Çalışma aralığını seç</h2><p>Hangi sayfalar üzerinde çalışılsın?</p></div></div>
               <div class="range-fields"><label>İlk sayfa<div class="input-wrap"><input id="startPage" type="number" min="1" value="1" ${state.pdf ? `max="${state.pdf.numPages}"` : ''}><span>syf.</span></div></label><span class="range-dash">—</span><label>Son sayfa<div class="input-wrap"><input id="endPage" type="number" min="1" value="${state.pdf ? Math.min(3, state.pdf.numPages) : 3}" ${state.pdf ? `max="${state.pdf.numPages}"` : ''}><span>syf.</span></div></label></div>
-              <label class="select-label">Alıştırma soru sayısı<select id="questionCount"><option value="6">6 soru · Hızlı tekrar</option><option value="8" selected>8 soru · Dengeli tekrar</option><option value="10">10 soru · Konuyu pekiştir</option></select><i data-lucide="chevron-down"></i></label>
+              <div class="question-count-field"><span class="question-count-label" id="questionCountLabel">Alıştırma soru sayısı</span><input id="questionCount" type="hidden" value="8"><button class="question-count-trigger" id="questionCountToggle" type="button" aria-labelledby="questionCountLabel questionCountValue" aria-haspopup="listbox" aria-expanded="false" aria-controls="questionCountMenu"><span id="questionCountValue">8 soru · Dengeli tekrar</span><i data-lucide="chevron-down"></i></button><div class="question-count-menu" id="questionCountMenu" role="listbox" aria-labelledby="questionCountLabel" hidden><button type="button" role="option" aria-selected="false" data-value="6"><span>6 soru</span><small>Hızlı tekrar</small></button><button type="button" role="option" aria-selected="true" data-value="8" class="selected"><span>8 soru</span><small>Dengeli tekrar</small></button><button type="button" role="option" aria-selected="false" data-value="10"><span>10 soru</span><small>Konuyu pekiştir</small></button></div></div>
               <button id="createBtn" class="primary-button" type="button" ${state.busy ? 'disabled' : ''}><span>${state.busy ? 'Sayfalar okunuyor…' : 'Özeti ve soruları oluştur'}</span><i data-lucide="arrow-right"></i></button><div class="privacy-note"><i data-lucide="circle-check"></i> Dosyan tarayıcından ayrılmaz.</div>
               </div>
             </section>
@@ -54,12 +54,71 @@ function render() {
     </div>`;
   document.querySelector('#pdfInput').addEventListener('change', handleFile);
   document.querySelector('#createBtn').addEventListener('click', createLesson);
+  bindQuestionCount();
   document.querySelector('#sampleBtn').addEventListener('click', () => alert('Ollama’yı ollama.com adresinden kur. Ardından terminalde “ollama run qwen2.5:3b” komutunu çalıştır. İlk model indirmesi tamamlanınca PDF yükleyebilirsin.'));
   const zone = document.querySelector('.upload-zone');
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragging'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('dragging'));
   zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragging'); const f = e.dataTransfer.files[0]; if (f) processFile(f); });
   createIcons();
+}
+
+function bindQuestionCount() {
+  const field = document.querySelector('.question-count-field');
+  const trigger = document.querySelector('#questionCountToggle');
+  const menu = document.querySelector('#questionCountMenu');
+  const valueInput = document.querySelector('#questionCount');
+  const valueLabel = document.querySelector('#questionCountValue');
+  const options = [...menu.querySelectorAll('[role="option"]')];
+  const closeMenu = (returnFocus = false) => {
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (returnFocus) trigger.focus();
+  };
+  const openMenu = () => {
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    (options.find(option => option.dataset.value === valueInput.value) || options[0]).focus();
+  };
+
+  trigger.addEventListener('click', () => menu.hidden ? openMenu() : closeMenu());
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      openMenu();
+    }
+  });
+  options.forEach((option, index) => {
+    option.addEventListener('click', () => {
+      valueInput.value = option.dataset.value;
+      valueLabel.textContent = `${option.dataset.value} soru · ${option.querySelector('small').textContent}`;
+      options.forEach(item => {
+        const selected = item === option;
+        item.classList.toggle('selected', selected);
+        item.setAttribute('aria-selected', String(selected));
+      });
+      closeMenu(true);
+    });
+    option.addEventListener('keydown', event => {
+      let nextIndex = index;
+      if (event.key === 'ArrowDown') nextIndex = (index + 1) % options.length;
+      else if (event.key === 'ArrowUp') nextIndex = (index - 1 + options.length) % options.length;
+      else if (event.key === 'Home') nextIndex = 0;
+      else if (event.key === 'End') nextIndex = options.length - 1;
+      else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu(true);
+        return;
+      } else return;
+      event.preventDefault();
+      options[nextIndex].focus();
+    });
+  });
+  if (state.questionCountOutsideHandler) document.removeEventListener('pointerdown', state.questionCountOutsideHandler);
+  state.questionCountOutsideHandler = event => {
+    if (!field.contains(event.target)) closeMenu();
+  };
+  document.addEventListener('pointerdown', state.questionCountOutsideHandler);
 }
 
 async function handleFile(e) { if (e.target.files[0]) await processFile(e.target.files[0]); }
