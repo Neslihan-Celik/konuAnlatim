@@ -35,7 +35,12 @@ export async function handler(event) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.25, maxOutputTokens: 5000 },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.25,
+          maxOutputTokens: 3200,
+          thinkingConfig: { thinkingLevel: 'low' },
+        },
       }),
     });
   } catch {
