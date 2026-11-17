@@ -1,5 +1,6 @@
 const MODEL = 'gemini-3.5-flash-lite';
 const MAX_TEXT_LENGTH = 24000;
+const normalizeQuestion = value => String(value || '').toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[^\p{L}\p{N}]/gu, '');
 
 export const config = { path: '/api/generate' };
 
@@ -21,6 +22,10 @@ export async function handler(event) {
 
   const text = typeof input.text === 'string' ? input.text.trim() : '';
   const language = typeof input.language === 'string' && input.language.trim() ? input.language.trim().slice(0, 40) : '';
+  const excludeQuestions = Array.isArray(input.excludeQuestions)
+    ? input.excludeQuestions.filter(question => typeof question === 'string').map(question => question.trim().slice(0, 320)).filter(Boolean).slice(-50)
+    : [];
+  const excludedQuestionSet = new Set(excludeQuestions.map(normalizeQuestion));
   const count = Number(input.count);
   const pageCount = Number.isInteger(Number(input.pages)) ? Math.min(200, Math.max(1, Number(input.pages))) : 1;
   const denseContent = pageCount >= 4 || text.length >= 6500;
@@ -37,7 +42,10 @@ export async function handler(event) {
   const subjectGuidance = language
     ? `Ders/öğrenme dili ${language} olarak belirtilmiş; bu dili ve kaynakta görünen ders konularını esas al.`
     : 'PDF’den dersin ana konusunu ve varsa öğrenilen dili kendin belirle. İçerik dil öğrenimiyle ilgiliyse kaynakta geçen dili ve kuralları kullan; başka bir dersse yalnızca o dersin kavramlarını, kurallarını ve formüllerini ölç. Rusça ya da başka bir dili, kaynakta yoksa konuya ekleme.';
-  const prompt = `Sen dikkatli bir öğretmensin. Yalnızca aşağıdaki PDF sayfalarındaki içeriğe dayan. ${subjectGuidance} summary, topics, keyPoints, soru metinleri, seçenekler, hint ve warning alanlarını doğal ve dil bilgisi doğru Türkçeyle yaz. Kaynaktaki özel terimleri, sembolleri, formülleri ve hedef dil örneklerini doğru yazımlarıyla koru; başka alfabeye aktarma veya kaynakta olmayan bilgi uydurma. Noktalama, boşluk ve cümle başlangıçlarında Türkçe yazım kurallarına uy. topics alanında her başlığı ayrı ve kısa bir dize olarak yaz; başlıkları tek bir dizede birleştirme. ${summaryGuidance} PDF’de yeterli içerik varsa, her birinin tek ve savunulabilir doğru yanıtı bulunan ${count} kısa çoktan seçmeli alıştırma hazırla. Konuya uygun soru türlerini kullan: kavramı açıklama, kuralı/formülü uygulama, neden-sonuç, örnek yorumlama veya metni anlama. Boşluk doldurma sorusu kullanırsan boşluğu soru içinde açıkça sekiz alt çizgiyle (________) göster ve seçenekleri bu boşluğu tamamlayacak şekilde yaz; boşluk göstermeden boşluk doldurma isteme. Cevabı sorunun içinde verme veya aynı ifadeyi tekrar seçtirme. Her sorunun dört seçeneği ve doğru yanıtı açıklayan kısa, Türkçe bir ipucu olsun. İçerik sayıyı karşılamaya yetmiyorsa zayıf soru uydurma; anlamlı olanları üret ve warning alanında bunu kısaca belirt.\n\nPDF’den çıkarılan metin:\n${text}`;
+  const questionHistoryGuidance = excludeQuestions.length
+    ? `ÖNCEKİ TURLARDA SORULANLAR: ${JSON.stringify(excludeQuestions)}. Bunları aynen veya farklı sözcüklerle yeniden sorma. Yeni turda kaynakta bulunan ve henüz ölçülmemiş başka kural, kavram, örnek ya da uygulamalara odaklan; önceki sorularla aynı bilgiyi sınayan sorular üretme.`
+    : '';
+  const prompt = `Sen dikkatli bir öğretmensin. Yalnızca aşağıdaki PDF sayfalarındaki içeriğe dayan. ${subjectGuidance} summary, topics, keyPoints, soru metinleri, seçenekler, hint ve warning alanlarını doğal ve dil bilgisi doğru Türkçeyle yaz. Kaynaktaki özel terimleri, sembolleri, formülleri ve hedef dil örneklerini doğru yazımlarıyla koru; başka alfabeye aktarma veya kaynakta olmayan bilgi uydurma. Noktalama, boşluk ve cümle başlangıçlarında Türkçe yazım kurallarına uy. topics alanında her başlığı ayrı ve kısa bir dize olarak yaz; başlıkları tek bir dizede birleştirme. ${summaryGuidance} PDF’de yeterli içerik varsa, her birinin tek ve savunulabilir doğru yanıtı bulunan ${count} kısa çoktan seçmeli alıştırma hazırla. Konuya uygun soru türlerini kullan: kavramı açıklama, kuralı/formülü uygulama, neden-sonuç, örnek yorumlama veya metni anlama. Boşluk doldurma sorusu kullanırsan boşluğu soru içinde açıkça sekiz alt çizgiyle (________) göster ve seçenekleri bu boşluğu tamamlayacak şekilde yaz; boşluk göstermeden boşluk doldurma isteme. Cevabı sorunun içinde verme veya aynı ifadeyi tekrar seçtirme. Her sorunun dört seçeneği ve doğru yanıtı açıklayan kısa, Türkçe bir ipucu olsun. ${questionHistoryGuidance} İçerik sayıyı karşılamaya yetmiyorsa zayıf soru uydurma; anlamlı olanları üret ve warning alanında bunu kısaca belirt.\n\nPDF’den çıkarılan metin:\n${text}`;
   const responseSchema = {
     type: 'OBJECT',
     properties: {
@@ -113,7 +121,7 @@ export async function handler(event) {
   try { data = JSON.parse(answerText); }
   catch { return json(502, { error: 'Model geçerli bir özet ve quiz oluşturamadı. Daha az sayfa seçip tekrar dene.' }); }
 
-  const questions = Array.isArray(data.questions) ? data.questions.map(question => ({
+  const validQuestions = Array.isArray(data.questions) ? data.questions.map(question => ({
     ...question,
     answer: Number(question?.answer),
   })).filter(question =>
@@ -122,10 +130,16 @@ export async function handler(event) {
     Array.isArray(question.options) && question.options.length === 4 && question.options.every(option => typeof option === 'string' && option.trim()) &&
     Number.isInteger(question.answer) && question.answer >= 0 && question.answer < 4 &&
     typeof question.hint === 'string'
-  ).slice(0, count) : [];
-  if (typeof data.summary !== 'string' || data.summary.trim().length < 20 || !questions.length) {
+  ) : [];
+  const questions = validQuestions.filter(question => !excludedQuestionSet.has(normalizeQuestion(question.question))).slice(0, count);
+  if (typeof data.summary !== 'string' || data.summary.trim().length < 20) {
     return json(502, { error: 'Model bu içerikten doğrulanabilir soru oluşturamadı. Yeniden dene veya daha fazla konu içeren sayfalar seç.' });
   }
+  if (!questions.length) return json(excludeQuestions.length ? 409 : 502, {
+    error: excludeQuestions.length
+      ? 'Seçilen sayfalarda tekrar etmeyen yeni bir soru üretilemedi. Farklı sayfalar seçip yeniden dene.'
+      : 'Model bu içerikten doğrulanabilir soru oluşturamadı. Yeniden dene veya daha fazla konu içeren sayfalar seç.',
+  });
 
   return json(200, {
     summary: data.summary.trim(),
