@@ -27,6 +27,28 @@ export async function handler(event) {
   if (!Number.isInteger(count) || count < 4 || count > 12) return json(400, { error: 'Soru sayısı 4 ile 12 arasında olmalı.' });
 
   const prompt = `Sen dikkatli bir ${language} dili öğretmenisin. Yalnızca aşağıdaki ders kitabı içeriğine dayan. Çıktı dili Türkçe olsun. Kısa, anlaşılır ve öğrencinin seviyesine uygun bir konu özeti hazırla; metindeki gerçek dil konularını belirle; her soruda tek ve savunulabilir doğru yanıt olan ${count} kısa quiz sorusu üret. Soruların farklı türlerini kullan: anlam, dil bilgisi, kelimeyi bağlamda kullanma, cümle kurma veya metni anlama; içerikte olmayan konuları uydurma. Dört seçenek ve Türkçe açıklayıcı ipucu ekle. Yeterli konu yoksa zayıf sorularla sayıyı doldurma; yalnızca anlamlı soruları üret ve warning alanında nedenini açıkla.\n\nDers kitabı metni:\n${text}`;
+  const responseSchema = {
+    type: 'OBJECT',
+    properties: {
+      summary: { type: 'STRING' },
+      topics: { type: 'ARRAY', items: { type: 'STRING' } },
+      questions: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            question: { type: 'STRING' },
+            options: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 4, maxItems: 4 },
+            answer: { type: 'INTEGER', minimum: 0, maximum: 3 },
+            hint: { type: 'STRING' },
+          },
+          required: ['question', 'options', 'answer', 'hint'],
+        },
+      },
+      warning: { type: 'STRING' },
+    },
+    required: ['summary', 'topics', 'questions', 'warning'],
+  };
 
   let upstream;
   try {
@@ -37,6 +59,7 @@ export async function handler(event) {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           responseMimeType: 'application/json',
+          responseSchema,
           temperature: 0.25,
           maxOutputTokens: 3200,
           thinkingConfig: { thinkingLevel: 'minimal' },
