@@ -10,7 +10,17 @@ Herhangi bir ders PDF'inde sayfa aralığı seçip kısa özet ve mini quiz olu�
 
 PDF metni çıkarımı tarayıcıda yapılır; PDF dosyasının kendisi yüklenmez. Taranmış, görüntü tabanlı PDF'ler henüz OCR ile okunmaz.
 
-## Ücretsiz yerel yapay zekâ
+## Canlı Netlify kurulumu
+
+Canlı sitede yerel Ollama adresi kullanılamaz; Netlify sunucusu senin bilgisayarına erişemez. Üretimde Netlify Function, Gemini API üzerinden kısa özet ve quiz üretir.
+
+1. Google AI Studio'dan ücretsiz Gemini API anahtarı al: [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+2. Netlify site ayarlarında **Environment variables** bölümüne `GEMINI_API_KEY` adında değişken ekle ve anahtarını değer olarak kaydet. Anahtarı istemci koduna veya GitHub'a koyma.
+3. Bu değişiklikleri deploy et. Netlify, `netlify.toml` içindeki yönlendirmeyle `/api/generate` çağrılarını Function'a iletir.
+
+Ücretsiz Gemini API kotası sınırlıdır ve değişebilir. Ücretsiz katmanda gönderilen içerik Google ürünlerini geliştirmek için kullanılabilir; öğrenci verisi veya paylaşım izni olmayan telifli kitap sayfalarıyla kullanmadan önce Google AI Studio şartlarını incele.
+
+## Yerel geliştirme için Ollama
 
 1. Ollama'yı [ollama.com](https://ollama.com) adresinden kurup aç.
 2. Proje klasöründeki terminalde `ollama run qwen2.5:3b` komutunu çalıştır. Model ilk seferinde indirilir.
@@ -20,4 +30,4 @@ PDF metni çıkarımı tarayıcıda yapılır; PDF dosyasının kendisi yüklenm
 
 Bilgisayarda verilen `localhost` adresini aç. Telefon ve bilgisayar aynı Wi-Fi ağına bağlıyken, bilgisayarın yerel IPv4 adresini bul (`ipconfig` komutundaki IPv4 Address) ve telefonda `http://BILGISAYAR-IP:5173` adresini aç. Vite başka bir port (ör. 5174) seçtiyse o portu kullan. Gerekirse Windows Güvenlik Duvarı'nda Node.js için özel ağ erişimine izin ver. Ollama bilgisayarda açık kalmalıdır.
 
-Uygulama, seçilen PDF sayfalarının metnini özet ve quiz üretmesi için yerel modele yollar. Üretim seçilen öğrenme diline göre yapılır; PDF/kitap içeriğine sabitlenmez. Modelden gelen soru ve seçenekler biçim açısından doğrulanır. Çıktıyı kullanan kişi doğruluğunu gözden geçirmelidir. Ollama kapalıysa veya seçilen sayfalarda yeterli metin yoksa uygulama içerik uydurmak yerine açık hata verir.
+Yerelde geliştirme sunucusu PDF metnini Ollama'ya yollar; canlı Netlify sürümü ise yapılandırılmış Gemini Function'ını kullanır. Her iki akışta da üretim seçilen öğrenme diline ve PDF içeriğine dayanır. Modelden gelen soru ve seçenekler biçim açısından doğrulanır; pedagojik doğruluk garanti edilmez. Taranmış görsel PDF'lerde henüz OCR yoktur.
