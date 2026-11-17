@@ -16,7 +16,7 @@ Canlı sitede yerel Ollama adresi kullanılamaz; Netlify sunucusu senin bilgisay
 
 1. Google AI Studio'dan ücretsiz Gemini API anahtarı al: [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 2. Netlify site ayarlarında **Environment variables** bölümüne `GEMINI_API_KEY` adında değişken ekle ve anahtarını değer olarak kaydet. Anahtarı istemci koduna veya GitHub'a koyma.
-3. Bu değişiklikleri deploy et. Netlify, `netlify.toml` içindeki yönlendirmeyle `/api/generate` çağrılarını Function'a iletir.
+3. `GEMINI_API_KEY` ekledikten veya değiştirdikten sonra yeni bir production deploy başlat. Deploy, Netlify Function'a yeni değeri aktarır; `netlify.toml` ise `/api/generate` çağrılarını Function'a yönlendirir.
 
 Ücretsiz Gemini API kotası sınırlıdır ve değişebilir. Ücretsiz katmanda gönderilen içerik Google ürünlerini geliştirmek için kullanılabilir; öğrenci verisi veya paylaşım izni olmayan telifli kitap sayfalarıyla kullanmadan önce Google AI Studio şartlarını incele.
 
