@@ -1,7 +1,4 @@
-import * as pdfjsLib from 'pdfjs-dist';
 import './style.css';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
 
 const svgPaths={'book-open':'<path d="M12 7v14m0-14C9 5 5 4 2 5v14c3-1 7 0 10 2m0-14c3-2 7-3 10-2v14c-3-1-7 0-10 2"/>',sparkles:'<path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.2 2.8L23 18l-2.8 1.2L19 22l-1.2-2.8L15 18l2.8-1.2L19 14Z"/>',upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5m5-5v12"/>','file-text':'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/>','chevron-down':'<path d="m6 9 6 6 6-6"/>','chevron-right':'<path d="m9 18 6-6-6-6"/>','arrow-right':'<path d="M5 12h14m-7-7 7 7-7 7"/>',download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5m-5 5V3"/>',check:'<path d="m5 12 4 4L19 6"/>','rotate-ccw':'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>','clock-3':'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>','book-marked':'<path d="M12 7v14m0-14C9 5 5 4 2 5v14c3-1 7 0 10 2m0-14c3-2 7-3 10-2v14c-3-1-7 0-10 2"/><path d="M17 4v5l2-1 2 1V4"/>',languages:'<path d="m5 8 6 6m-7 0 6-6 2-3M2 5h12M7 2h1m14 19-5-11-5 11m2-4h6"/>','circle-help':'<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3m.1 4h.01"/>',x:'<path d="m18 6-12 12M6 6l12 12"/>',leaf:'<path d="M11 20A7 7 0 0 1 4 13C4 5 20 3 20 3s-2 16-10 17Z"/><path d="M8 16c2-3 5-5 9-7"/>','party-popper':'<path d="m5 11 4 4M2 22l10-10M7 3l1 5m8-5-2 5m8 2-5 1"/><path d="M14 14 3 21l7-11 4 4Z"/>','circle-check':'<circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/>','arrow-left':'<path d="M19 12H5m7 7-7-7 7-7"/>',lightbulb:'<path d="M9 18h6m-5 4h4m-5-8a6 6 0 1 1 6 0c-.8.6-1 1.1-1 2h-4c0-.9-.2-1.4-1-2Z"/>'};
 function createIcons(){document.querySelectorAll('[data-lucide]').forEach(el=>{const name=el.getAttribute('data-lucide');el.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svgPaths[name]||svgPaths.sparkles}</svg>`;});}
@@ -129,7 +126,12 @@ async function processFile(file) {
   if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return alert('Lütfen bir PDF dosyası seç.');
   if (file.size > 25 * 1024 * 1024) return alert('Dosya 25 MB sınırını aşıyor.');
   state.file = file; state.pdf = null; render();
-  try { state.pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise; render(); }
+  try {
+    const [pdfjsLib, data] = await Promise.all([import('pdfjs-dist'), file.arrayBuffer()]);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+    state.pdf = await pdfjsLib.getDocument({ data }).promise;
+    render();
+  }
   catch (e) { console.error(e); alert('PDF okunamadı. Dosyanın şifreli olmadığını kontrol edip yeniden dene.'); state.file = null; render(); }
 }
 
@@ -141,8 +143,18 @@ async function createLesson() {
   state.busy = true; render();
   try {
     const pages = [];
-    if (state.pdf?.getPage) for (let n = start; n <= end; n++) { const p = await state.pdf.getPage(n); const c = await p.getTextContent(); pages.push(c.items.map(x => x.str).join(' ')); }
-    const text = pages.join('\n').replace(/\s+/g, ' ').trim();
+    let extractedLength = 0;
+    if (state.pdf?.getPage) for (let first = start; first <= end && extractedLength < 24000; first += 4) {
+      const last = Math.min(first + 3, end);
+      const batch = await Promise.all(Array.from({ length: last - first + 1 }, async (_, index) => {
+        const page = await state.pdf.getPage(first + index);
+        const content = await page.getTextContent();
+        return content.items.map(item => item.str).join(' ');
+      }));
+      pages.push(...batch);
+      extractedLength += batch.reduce((length, pageText) => length + pageText.length + 1, 0);
+    }
+    const text = pages.join('\n').replace(/\s+/g, ' ').trim().slice(0, 24000);
     if (text.length < 120) throw new Error('Seçilen sayfalardan yeterli metin çıkarılamadı. PDF taranmış olabilir veya seçilen sayfalarda metin bulunmayabilir.');
     const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.slice(0, 24000), count, difficulty, pages: end - start + 1 }) });
     const rawResponse = await response.text();
